@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="theme-color" content="#000000" />
+  <meta name="color-scheme" content="dark" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Deutsch A1" />
+  <meta name="description" content="Learn German from zero to A1 with interactive lessons, flashcards and quizzes." />
+  <title>Deutsch A1</title>
+
+  <!-- Emoji favicon (no external file needed) -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🇩🇪</text></svg>" />
+
+  <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body>
+  <!-- Shown only if JavaScript fails to load -->
+  <noscript>
+    <div style="padding:40px;color:#fff;font-family:sans-serif;text-align:center">
+      Deutsch A1 needs JavaScript enabled to run.
+    </div>
+  </noscript>
+
+  <!-- ============ APP SHELL ============ -->
+  <div id="app" class="app" aria-live="polite">
+
+    <!-- Frosted top navigation bar (large title collapses on scroll) -->
+    <header id="navbar" class="navbar" role="banner">
+      <div class="navbar-inner">
+        <button id="nav-back" class="nav-back hidden" type="button" aria-label="Back">
+          <svg viewBox="0 0 12 20" width="12" height="20" aria-hidden="true">
+            <path d="M10 2 2 10l8 8" fill="none" stroke="currentColor" stroke-width="2.6"
+                  stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+          <span id="nav-back-label">Back</span>
+        </button>
+        <div id="nav-title-small" class="nav-title-small" aria-hidden="true"></div>
+        <div id="nav-actions" class="nav-actions"></div>
+      </div>
+    </header>
+
+    <!-- Scrollable content area; screens are rendered here by app.js -->
+    <main id="screen" class="screen" role="main" tabindex="-1">
+      <!-- Boot splash (replaced when app.js renders the first screen) -->
+      <div class="boot">
+        <div class="boot-flag">🇩🇪</div>
+        <div class="boot-title">Deutsch A1</div>
+        <div class="boot-spinner" aria-hidden="true"></div>
+      </div>
+    </main>
+
+    <!-- Glass bottom tab bar -->
+    <nav id="tabbar" class="tabbar" role="tablist" aria-label="Main navigation">
+      <button class="tab active" type="button" role="tab" data-tab="learn" aria-selected="true">
+        <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">
+          <path d="M3 6.5C3 5.7 3.7 5 4.5 5H10c1 0 2 .6 2 1.6V20c0-1-1-1.6-2-1.6H4.5c-.8 0-1.5-.7-1.5-1.5V6.5Z
+                   M21 6.5c0-.8-.7-1.5-1.5-1.5H14c-1 0-2 .6-2 1.6V20c0-1 1-1.6 2-1.6h5.5c.8 0 1.5-.7 1.5-1.5V6.5Z"
+                fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+        </svg>
+        <span>Learn</span>
+      </button>
+
+      <button class="tab" type="button" role="tab" data-tab="practice" aria-selected="false">
+        <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">
+          <rect x="3" y="5" width="14" height="14" rx="3" fill="none" stroke="currentColor" stroke-width="1.8" />
+          <path d="M8 3h10a3 3 0 0 1 3 3v10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+          <circle cx="10" cy="12" r="1.3" fill="currentColor" />
+        </svg>
+        <span>Practice</span>
+      </button>
+
+      <button class="tab" type="button" role="tab" data-tab="review" aria-selected="false">
+        <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">
+          <path d="M20 12a8 8 0 1 1-2.5-5.8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+          <path d="M20 4v4.5h-4.5" fill="none" stroke="currentColor" stroke-width="1.8"
+                stroke-linecap="round" stroke-linejoin="round" />
+          <path d="M12 8v4.2l2.6 1.6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+        </svg>
+        <span>Review</span>
+        <i id="review-badge" class="tab-badge hidden">0</i>
+      </button>
+
+      <button class="tab" type="button" role="tab" data-tab="profile" aria-selected="false">
+        <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">
+          <circle cx="12" cy="8.5" r="3.8" fill="none" stroke="currentColor" stroke-width="1.8" />
+          <path d="M4.5 20c.6-3.8 3.7-6 7.5-6s6.9 2.2 7.5 6" fill="none" stroke="currentColor"
+                stroke-width="1.8" stroke-linecap="round" />
+        </svg>
+        <span>Profile</span>
+      </button>
+    </nav>
+
+    <!-- Overlay roots: bottom sheets, toasts, confetti -->
+    <div id="sheet-root" class="sheet-root" aria-hidden="true"></div>
+    <div id="toast-root" class="toast-root" aria-live="assertive"></div>
+    <canvas id="confetti" class="confetti" aria-hidden="true"></canvas>
+  </div>
+
+  <!-- ============ SCRIPTS ============
+       Classic scripts (not ES modules) so the app works from file://
+       Everything shares the global namespace window.GA1.
+       ORDER MATTERS: core -> engines -> unit data -> app.
+  -->
+  <script>
+    window.GA1 = window.GA1 || { units: [] };
+  </script>
+
+  <!-- Core -->
+  <script src="store.js"></script>
+  <script src="speech.js"></script>
+  <script src="ui.js"></script>
+  <script src="exercises.js"></script>
+
+  <!-- Curriculum data: each unit registers itself via GA1.units.push(...).
+       A missing file is simply skipped and shown as "Coming soon". -->
+  <script src="data/unit01.js"></script>
+  <script src="data/unit02.js"></script>
+  <script src="data/unit03.js"></script>
+  <script src="data/unit04.js"></script>
+  <script src="data/unit05.js"></script>
+  <script src="data/unit06.js"></script>
+  <script src="data/unit07.js"></script>
+  <script src="data/unit08.js"></script>
+  <script src="data/unit09.js"></script>
+  <script src="data/unit10.js"></script>
+  <script src="data/unit11.js"></script>
+  <script src="data/unit12.js"></script>
+
+  <!-- App controller (router, screens, lesson flow, boot) -->
+  <script src="app.js"></script>
+</body>
+</html>
