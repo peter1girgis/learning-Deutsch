@@ -1,6 +1,5 @@
 /* =========================================================
-   Deutsch A1 — speech.js (Web Speech API Engine)
-   100% compatible with GitHub Pages, mobile and desktop.
+   Deutsch A1 — speech.js (Google TTS with AbortError Fix)
    ========================================================= */
 (function () {
   "use strict";
@@ -9,27 +8,8 @@
 
   var currentBtn = null;
   var speaking = false;
-  var synth = window.speechSynthesis;
-  var germanVoice = null;
+  var currentAudio = null;
 
-  /* ---------- Load German Voice ---------- */
-  function loadVoices() {
-    if (!synth) return;
-    var voices = synth.getVoices() || [];
-    // البحث عن صوت ألماني عالي الجودة أو أي صوت ألماني متاح
-    germanVoice = voices.find(function (v) {
-      return v.lang === "de-DE" || v.lang === "de_DE" || v.lang.indexOf("de") === 0;
-    }) || voices[0] || null;
-  }
-
-  if (synth) {
-    loadVoices();
-    if (synth.onvoiceschanged !== undefined) {
-      synth.onvoiceschanged = loadVoices;
-    }
-  }
-
-  /* ---------- Text cleanup ---------- */
   function clean(text) {
     return String(text || "")
       .replace(/_{2,}/g, " ")
@@ -41,84 +21,99 @@
       .trim();
   }
 
-  /* ---------- Playback Control ---------- */
   function setPlaying(btn, on) {
     if (!btn) return;
     btn.classList.toggle("playing", !!on);
   }
 
   function stop() {
-    if (synth) {
+    if (currentAudio) {
       try {
-        synth.cancel();
+        currentAudio.pause();
+        currentAudio.currentTime = 0;
+        currentAudio.src = "";
       } catch (e) {}
+      currentAudio = null;
     }
     speaking = false;
     setPlaying(currentBtn, false);
     currentBtn = null;
   }
 
-  // الدالة الأساسية للنطق باستخدام المتصفح الداخلي
   function speak(text, opts) {
     opts = opts || {};
     var GA = window.GA1;
     var muted = GA.store && GA.store.getSetting("sound") === false;
     var t = clean(text);
 
-    if (muted || !t || !synth) {
+    if (muted || !t) {
       if (opts.onend) opts.onend();
       return false;
     }
 
-    // إيقاف أي نطق سابق لمنع التداخل
+    // إيقاف الصوت الحالي بأمان قبل بدء الجديد
     stop();
 
     currentBtn = opts.btn || null;
     setPlaying(currentBtn, true);
     speaking = true;
 
-    var utterance = new SpeechSynthesisUtterance(t);
-    utterance.lang = "de-DE";
-    
-    if (germanVoice) {
-      utterance.voice = germanVoice;
-    }
+    var encoded = encodeURIComponent(t);
+    var googleUrl = "https://translate.google.com/translate_tts?ie=UTF-8&q=" + encoded + "&tl=de&client=tw-ob";
+    var proxyUrl = "https://api.allorigins.win/raw?url=" + encodeURIComponent(googleUrl);
 
-    // ضبط السرعة
+    var audio = new Audio();
+    currentAudio = audio;
+
     var defaultRate = GA.store ? GA.store.getSetting("rate") : 0.85;
     var rate = opts.rate != null ? opts.rate : defaultRate;
-    utterance.rate = Math.min(1.2, Math.max(0.4, rate || 0.85));
+    try {
+      audio.playbackRate = Math.min(1.2, Math.max(0.5, rate || 0.85));
+    } catch (e) {}
 
     var done = function () {
-      speaking = false;
-      setPlaying(currentBtn, false);
-      currentBtn = null;
+      if (currentAudio === audio) {
+        speaking = false;
+        setPlaying(currentBtn, false);
+        currentBtn = null;
+        currentAudio = null;
+      }
       if (opts.onend) opts.onend();
     };
 
-    utterance.onend = done;
-    utterance.onerror = function (e) {
-      console.warn("Speech synthesis error:", e);
-      done();
+    audio.onended = done;
+    audio.onerror = function () {
+      if (audio.src !== googleUrl) {
+        audio.src = googleUrl;
+        audio.play().catch(done);
+      } else {
+        done();
+      }
     };
 
-    try {
-      synth.speak(utterance);
-    } catch (e) {
-      console.warn("Speech failed:", e);
-      done();
+    audio.src = proxyUrl;
+    audio.load();
+
+    // تشغيل آمن مع معالجة مقاطعة الـ play عن طريق الـ pause
+    var playPromise = audio.play();
+    if (playPromise !== undefined) {
+      playPromise.catch(function (e) {
+        // تجاهل خطأ المقاطعة الناتج عن الضغط السريع
+        if (e.name !== "AbortError") {
+          console.warn("Audio play error:", e);
+        }
+        done();
+      });
     }
 
     return true;
   }
 
-  // النطق البطيء للتدريب
   function speakSlow(text, opts) {
-    opts = Object.assign({}, opts || {}, { rate: 0.5 });
+    opts = Object.assign({}, opts || {}, { rate: 0.55 });
     return speak(text, opts);
   }
 
-  /* ---------- Delegated click handling ---------- */
   document.addEventListener("click", function (e) {
     var el = e.target.closest ? e.target.closest("[data-speak]") : null;
     if (!el) return;
@@ -133,16 +128,15 @@
   });
   window.addEventListener("pagehide", stop);
 
-  /* ---------- Public API ---------- */
   GA1.speech = {
-    get supported() { return !!synth; },
-    get voiceName() { return germanVoice ? germanVoice.name : "Default German Voice"; },
-    get hasGermanVoice() { return !!germanVoice; },
+    get supported() { return true; },
+    get voiceName() { return "Google Natural German Voice"; },
+    get hasGermanVoice() { return true; },
     get speaking() { return speaking; },
     speak: speak,
     speakSlow: speakSlow,
     stop: stop,
     clean: clean,
-    refresh: loadVoices
+    refresh: function() {}
   };
 })();
