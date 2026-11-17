@@ -1,6 +1,6 @@
 /* =========================================================
-   Deutsch A1 — speech.js (Pure Google TTS Engine)
-   100% Human-like German pronunciation without browser voice conflicts.
+   Deutsch A1 — speech.js (Web Speech API Engine)
+   100% compatible with GitHub Pages, mobile and desktop.
    ========================================================= */
 (function () {
   "use strict";
@@ -9,7 +9,25 @@
 
   var currentBtn = null;
   var speaking = false;
-  var currentAudio = null;
+  var synth = window.speechSynthesis;
+  var germanVoice = null;
+
+  /* ---------- Load German Voice ---------- */
+  function loadVoices() {
+    if (!synth) return;
+    var voices = synth.getVoices() || [];
+    // البحث عن صوت ألماني عالي الجودة أو أي صوت ألماني متاح
+    germanVoice = voices.find(function (v) {
+      return v.lang === "de-DE" || v.lang === "de_DE" || v.lang.indexOf("de") === 0;
+    }) || voices[0] || null;
+  }
+
+  if (synth) {
+    loadVoices();
+    if (synth.onvoiceschanged !== undefined) {
+      synth.onvoiceschanged = loadVoices;
+    }
+  }
 
   /* ---------- Text cleanup ---------- */
   function clean(text) {
@@ -30,11 +48,9 @@
   }
 
   function stop() {
-    if (currentAudio) {
+    if (synth) {
       try {
-        currentAudio.pause();
-        currentAudio.currentTime = 0;
-        currentAudio = null;
+        synth.cancel();
       } catch (e) {}
     }
     speaking = false;
@@ -42,58 +58,63 @@
     currentBtn = null;
   }
 
-  // الدالة الوحيدة والأساسية للنطق (نطق بشري صافي 100%)
+  // الدالة الأساسية للنطق باستخدام المتصفح الداخلي
   function speak(text, opts) {
     opts = opts || {};
     var GA = window.GA1;
     var muted = GA.store && GA.store.getSetting("sound") === false;
     var t = clean(text);
 
-    if (muted || !t) {
+    if (muted || !t || !synth) {
       if (opts.onend) opts.onend();
       return false;
     }
 
-    // إيقاف أي صوت شغال حالياً فوراً لمنع التداخل
+    // إيقاف أي نطق سابق لمنع التداخل
     stop();
 
     currentBtn = opts.btn || null;
     setPlaying(currentBtn, true);
     speaking = true;
 
-    var encoded = encodeURIComponent(t);
-    // رابط جوجل المباشر للنطق الألماني النقي
-    var url = "https://translate.google.com/translate_tts?ie=UTF-8&q=" + encoded + "&tl=de&client=tw-ob";
-
-    currentAudio = new Audio(url);
+    var utterance = new SpeechSynthesisUtterance(t);
+    utterance.lang = "de-DE";
     
-    // ضبط السرعة (الافتراضي 0.85 أو السرعة المرسلة في الـ options)
+    if (germanVoice) {
+      utterance.voice = germanVoice;
+    }
+
+    // ضبط السرعة
     var defaultRate = GA.store ? GA.store.getSetting("rate") : 0.85;
     var rate = opts.rate != null ? opts.rate : defaultRate;
-    currentAudio.playbackRate = Math.min(1.2, Math.max(0.5, rate || 0.85));
+    utterance.rate = Math.min(1.2, Math.max(0.4, rate || 0.85));
 
     var done = function () {
       speaking = false;
       setPlaying(currentBtn, false);
       currentBtn = null;
-      currentAudio = null;
       if (opts.onend) opts.onend();
     };
 
-    currentAudio.onended = done;
-    currentAudio.onerror = done;
-
-    currentAudio.play().catch(function (e) {
-      console.warn("Audio playback failed:", e);
+    utterance.onend = done;
+    utterance.onerror = function (e) {
+      console.warn("Speech synthesis error:", e);
       done();
-    });
+    };
+
+    try {
+      synth.speak(utterance);
+    } catch (e) {
+      console.warn("Speech failed:", e);
+      done();
+    }
 
     return true;
   }
 
-  // النطق البطيء للتدريب (سرعة 0.55 لتوضيح تفاصيل الكلمات الألمانية)
+  // النطق البطيء للتدريب
   function speakSlow(text, opts) {
-    opts = Object.assign({}, opts || {}, { rate: 0.55 });
+    opts = Object.assign({}, opts || {}, { rate: 0.5 });
     return speak(text, opts);
   }
 
@@ -114,14 +135,14 @@
 
   /* ---------- Public API ---------- */
   GA1.speech = {
-    get supported() { return true; },
-    get voiceName() { return "Google Natural German Voice"; },
-    get hasGermanVoice() { return true; },
+    get supported() { return !!synth; },
+    get voiceName() { return germanVoice ? germanVoice.name : "Default German Voice"; },
+    get hasGermanVoice() { return !!germanVoice; },
     get speaking() { return speaking; },
     speak: speak,
     speakSlow: speakSlow,
     stop: stop,
     clean: clean,
-    refresh: function() {}
+    refresh: loadVoices
   };
 })();
