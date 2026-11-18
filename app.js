@@ -225,6 +225,10 @@
       '</div><div class="muted" style="font-size:14px">' + esc(u.subtitle || "") + "</div></div></div>";
     h += '<div class="mt-16">' + UI.progressBar(store.unitProgress(u), u.color) + "</div>";
 
+    h += '<div class="list mt-16">' +
+      navRow("guide", u.id, "📖", "Complete Study Guide", "All words, sentences, audio, tips & Q&A") +
+    "</div>";
+
     if (u.outcomes && u.outcomes.length) {
       h += '<div class="section-title">You will learn</div><div class="card">' + u.outcomes.map(o =>
         '<div class="row" style="padding:5px 0"><span>✅</span><span>' + esc(o) + "</span></div>").join("") + "</div>";
@@ -251,6 +255,124 @@
       "% to pass the unit</div></div>" + '<span class="chevron">›</span></button></div>';
 
     show(h, { title: u.title, back: { label: "Learn", onClick: () => showLearn("back") }, anim: anim || "forward" });
+  }
+
+  /* =========================================================
+     UNIT STUDY GUIDE (All Vocab, Sentences, Tips & Q&A)
+     ========================================================= */
+  function formatExerciseQA(ex, idx) {
+    let q = esc(ex.prompt || "");
+    let ans = "";
+    let speakText = "";
+
+    if (ex.type === "mcq") {
+      if (ex.sub) q += '<div class="muted" style="font-size:13px;margin-top:4px">' + esc(ex.sub) + "</div>";
+      if (ex.big) { q += ' <b style="color:var(--accent)">' + esc(ex.big) + "</b>"; speakText = ex.big; }
+      ans = typeof ex.answer === "number" ? ex.options[ex.answer] : ex.answer;
+    } else if (ex.type === "listen") {
+      q += ' <span class="muted">"' + esc(ex.text) + '"</span>';
+      speakText = ex.text;
+      ans = ex.answer;
+    } else if (ex.type === "fill") {
+      q += '<div style="margin-top:4px">' + esc(ex.sentence) + ' <span class="muted">(' + esc(ex.en || "") + ")</span></div>";
+      ans = ex.answer;
+      speakText = String(ex.sentence || "").replace("___", ex.answer);
+    } else if (ex.type === "type" || ex.type === "order") {
+      q = esc(ex.src || ex.prompt || "");
+      ans = ex.answer;
+      speakText = ex.answer;
+    } else if (ex.type === "article") {
+      q = 'Article for <b>' + esc(ex.noun) + '</b> <span class="muted">(' + esc(ex.en || "") + ")</span>";
+      ans = ex.answer + " " + ex.noun;
+      speakText = ans;
+    } else if (ex.type === "match") {
+      ans = (ex.pairs || []).map(p => esc(p.de) + " = " + esc(p.en)).join(" · ");
+    }
+
+    return '<div class="list-row" style="align-items:flex-start">' +
+      '<div class="grow">' +
+        '<div style="font-size:14px;font-weight:600">' + (idx + 1) + ". " + q + "</div>" +
+        '<div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px;align-items:center">' +
+          UI.chip("✓ " + ans, "green") +
+        "</div>" +
+        (ex.explain ? '<div class="muted" style="font-size:12px;margin-top:4px">' + hl(ex.explain) + "</div>" : "") +
+      "</div>" +
+      (speakText ? UI.speakBtn(speakText) : "") +
+    "</div>";
+  }
+
+  function showUnitGuide(uid, anim) {
+    const u = unitById(uid);
+    if (!u) return showLearn();
+    tab = "learn";
+
+    let h = '<div class="large-title" style="font-size:26px">Unit ' + u.num + " · Study Guide</div>" +
+            '<div class="subtitle">' + esc(u.title) + " — Complete reference</div>";
+
+    // Quick Jump Pills لكل Lecture
+    h += '<div class="row" style="flex-wrap:wrap;gap:6px;margin-bottom:16px">' +
+      u.lessons.map((l, i) =>
+        '<a href="#lec-' + esc(l.id) + '" class="chip" style="text-decoration:none" onclick="event.preventDefault();document.getElementById(\'lec-' + esc(l.id) + '\').scrollIntoView({behavior:\'smooth\'})">' +
+        (i + 1) + ". " + esc(l.title) + "</a>"
+      ).join("") + "</div>";
+
+    u.lessons.forEach((l, i) => {
+      h += '<div id="lec-' + esc(l.id) + '" class="section-title" style="margin-top:24px;font-size:16px;color:var(--accent)">' +
+           (l.emoji || "📘") + " Lecture " + (i + 1) + ": " + esc(l.title) + "</div>";
+
+      if (l.hook || l.goal) {
+        h += '<div class="card" style="margin-bottom:12px"><div style="font-weight:600">' + esc(l.goal || "") + '</div>' +
+             (l.hook ? '<div class="muted" style="font-size:13px;margin-top:4px">' + esc(l.hook) + "</div>" : "") + "</div>";
+      }
+
+      // 1. Quick Tip (نفس الشكل الأصلي بالظبط)
+      if (l.tip) {
+        const t = l.tip;
+        h += '<div class="card tip-card" style="margin-bottom:12px"><h3>💡 Quick tip: ' + esc(t.title || "") + "</h3><p>" + hl(t.text || "") + "</p>";
+        if (t.table) {
+          h += '<table class="grammar"><thead><tr>' + t.table.head.map(c => "<th>" + esc(c) + "</th>").join("") + "</tr></thead><tbody>" +
+               t.table.rows.map(r => "<tr>" + r.map(c => "<td>" + hl(c) + "</td>").join("") + "</tr>").join("") + "</tbody></table>";
+        }
+        if (t.examples && t.examples.length) {
+          h += '<div class="mt-16">' + t.examples.map(ex => {
+            const speakable = ex.de.indexOf(" = ") === -1 && ex.de.indexOf(" – ") === -1;
+            return '<div class="example">' + (speakable ? UI.speakBtn(ex.de) : "") + '<div><div class="de-line">' + hl(ex.de) +
+              '</div><div class="en-line">' + esc(ex.en) + "</div></div></div>";
+          }).join("") + "</div>";
+        }
+        h += "</div>";
+      }
+
+      // 2. Words & Sentences + Audio
+      if (l.vocab && l.vocab.length) {
+        h += '<div class="muted" style="font-weight:700;font-size:12px;text-transform:uppercase;margin:10px 4px 6px">Words & Sentences (' + l.vocab.length + ')</div>';
+        h += '<div class="list" style="margin-bottom:12px">' + l.vocab.map(w => {
+          const exHtml = w.ex
+            ? '<div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--surface-3);display:flex;align-items:center;justify-content:space-between;gap:8px">' +
+                '<div><div style="font-size:13px;font-weight:600">' + esc(w.ex) + '</div>' +
+                (w.exEn ? '<div class="muted" style="font-size:12px">' + esc(w.exEn) + "</div>" : "") + '</div>' +
+                UI.speakBtn(w.ex) +
+              "</div>"
+            : "";
+          return '<div class="list-row" style="flex-direction:column;align-items:stretch">' +
+            '<div class="row" style="justify-content:space-between">' +
+              '<div class="grow"><div class="title">' + wordHtml(w) + '</div><div class="sub">' + esc(w.en) +
+              (w.pl ? " · pl. " + esc(w.pl) : "") + "</div></div>" +
+              UI.speakBtn(EX.full(w)) +
+            "</div>" + exHtml + "</div>";
+        }).join("") + "</div>";
+      }
+
+      // 3. Exercises & Answers
+      if (l.exercises && l.exercises.length) {
+        h += '<div class="muted" style="font-weight:700;font-size:12px;text-transform:uppercase;margin:10px 4px 6px">Exercises & Answers (' + l.exercises.length + ')</div>';
+        h += '<div class="list" style="margin-bottom:16px">' +
+             l.exercises.map((ex, idx) => formatExerciseQA(ex, idx)).join("") +
+             "</div>";
+      }
+    });
+
+    show(h, { title: "Study Guide", back: { label: u.title, onClick: () => showUnit(u.id, "back") }, anim: anim || "forward" });
   }
 
   /* =========================================================
@@ -632,6 +754,7 @@
      ACTIONS (data-act dispatch)
      ========================================================= */
   const acts = {
+    guide: id => showUnitGuide(id),
     next: () => {
       const s = nextStep();
       if (!s) return;
