@@ -555,6 +555,8 @@
     const pool = learnedPool();
     let h = '<div class="large-title">Practice</div><div class="subtitle">Train the words you have learned.</div>';
 
+    h += GA1.customExam ? GA1.customExam.entry(showPractice) : ""; // [CUSTOM-EXAM]
+
     if (pool.length < 4) {
       h += UI.emptyState("🎯", "Practice unlocks soon", "Finish your first lesson, then come back to practise the words you have learned.");
       return show(h, { title: "Practice", anim: anim || "fade" });
